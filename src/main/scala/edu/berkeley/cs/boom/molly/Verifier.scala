@@ -68,7 +68,7 @@ class Verifier(
    * The ultimate model of a failure-free execution, used to bootstrap the verification.
    */
   private val failureFreeUltimateModel: UltimateModel = {
-    new C4Wrapper("error_free", failureFreeProgram).run
+    new C4Wrapper("error_free", failureFreeProgram, runId ).run
   }
 
   private val failureFreeGood = failureFreeUltimateModel.tableAtTime("post", failureSpec.eot).toSet
@@ -135,7 +135,7 @@ class Verifier(
     logger.warn(s"Testing with crashes $crashes and losses $messageLoss")
     val randomSpec = originalSpec.copy(crashes = crashes.toSet, omissions = messageLoss.toSet)
     val failProgram = DedalusTyper.inferTypes(randomSpec.addClockFacts(program))
-    val model = new C4Wrapper("with_errors", failProgram).run
+    val model = new C4Wrapper("with_errors", failProgram, runId).run
     val provenanceReader = new ProvenanceReader(failProgram, randomSpec, model, negativeSupport)
     val messages = provenanceReader.messages
     if (isGood(model)) {
@@ -213,7 +213,7 @@ class Verifier(
   private def runFailureSpec(failureSpec: FailureSpec): (Run, Set[FailureSpec]) = {
     logger.info(s"Retesting with crashes ${failureSpec.crashes} and losses ${failureSpec.omissions}")
     val failProgram = DedalusTyper.inferTypes(failureSpec.addClockFacts(program))
-    val model = new C4Wrapper("with_errors", failProgram).run
+    val model = new C4Wrapper("with_errors", failProgram, runId ).run
     logger.info(s"'post' is ${model.tableAtTime("post", failureSpec.eot)}")
     val provenanceReader = new ProvenanceReader(failProgram, failureSpec, model, negativeSupport)
     val messages = provenanceReader.messages
