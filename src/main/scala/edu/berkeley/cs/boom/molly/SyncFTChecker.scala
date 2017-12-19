@@ -65,9 +65,28 @@ object SyncFTChecker extends LazyLogging {
   }
 
   def check(config: Config, metrics: MetricRegistry): EphemeralStream[Run] = {
-    val combinedInput = config.inputPrograms.flatMap(Source.fromFile(_).getLines()).mkString("\n")
+
+    // ------------------------------------------------------------------------------------------------ //
+    //KD : hacks to get molly to input olg programs and bypass dedalus and provenance rewrites.
+    //     NOTE!!!
+    //     Pre-conditions for getting molly to process iapyx olg files :
+    //       1. remove/comment out all define statements
+    //       2. remove/comment out all crash edbs
+    //       3. remove/comment out all clock edbs
+
     val includeSearchPath = config.inputPrograms(0).getParentFile
-    val program = combinedInput |> parseProgramAndIncludes(includeSearchPath) |> referenceClockRules |> splitAggregateRules |> addProvenanceRules
+    val combinedInput = config.inputPrograms.flatMap(Source.fromFile(_).getLines()).mkString("\n")
+    val program = combinedInput |> parseProgramAndIncludes(includeSearchPath) //turn off rewrites
+
+    // ------------------------------------------------------------------------------------------------ //
+    // original molly stuff :
+    //
+    //val includeSearchPath = config.inputPrograms(0).getParentFile
+    //val combinedInput = config.inputPrograms.flatMap(Source.fromFile(_).getLines()).mkString("\n")
+    //val program = combinedInput |> parseProgramAndIncludes(includeSearchPath) |> referenceClockRules |> splitAggregateRules |> addProvenanceRules
+    //
+    // ------------------------------------------------------------------------------------------------ //
+
     val failureSpec = FailureSpec(config.eot, config.eff, config.crashes, config.nodes.toList)
     val solver = config.solver match {
       case "z3" => Z3Solver
