@@ -50,6 +50,30 @@ class C4Wrapper(name: String, program: Program, runId: AtomicInteger)
         }.toMap
         new UltimateModel(tables)
       } finally {
+
+          // ################################################### //
+          //KD : get evaluation results and save to file
+          val iapyx_tables_file = "./iapyx_tables.data"
+          val iapyx_tables      = Source.fromFile( iapyx_tables_file ).getLines.mkString
+          println( "iapyx_tables:" )
+          println( iapyx_tables )
+
+          val eval_results_file = new PrintWriter(new File( "eval_results_file_" + runId + ".txt"  ))
+          val table_list        = iapyx_tables.split( "," )
+
+          for ( t <- table_list ) {
+            println( "---------------------------" + runId )
+            println( t )
+            val eval_res = C4Wrapper.libC4.c4_dump_table(c4, t)
+            println( eval_res )
+
+            eval_results_file.write( "---------------------------" + "\n" )
+            eval_results_file.write( t + "\n" )
+            eval_results_file.write( eval_res + "\n" )
+          }
+          eval_results_file.close
+          // ################################################### //
+
         C4Wrapper.libC4.c4_destroy(c4)
         C4Wrapper.libC4.c4_terminate()
       }
