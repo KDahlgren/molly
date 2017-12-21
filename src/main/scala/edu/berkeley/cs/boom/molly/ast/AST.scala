@@ -44,8 +44,9 @@ case class Program(
 
 case class Table(name: String, types: List[DedalusType]) {
   types.headOption.foreach { t =>
-    assert(t == DedalusType.LOCATION,
-      s"First column of a table must have type LOCATION, but found $t")
+     println( s"DedalusType is $t" )
+//    assert(t == DedalusType.LOCATION,
+//      s"First column of a table must have type LOCATION, but found $t")
   }
 }
 

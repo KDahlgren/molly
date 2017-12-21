@@ -135,7 +135,7 @@ class ProvenanceReader(program: Program,
    */
   private def ruleFiringToSubgoals(provRule: Rule, bindings: Map[String, String]): (Seq[GoalTuple], Seq[GoalTuple]) = {
     logger.debug(s"Extracting subgoals from firing of ${provRule.head.tableName} with bindings $bindings")
-    val time = bindings("NRESERVED").toInt
+    //val time = bindings("NRESERVED").toInt
 
     val (negativePreds, positivePreds) = provRule.bodyPredicates.partition(_.notin)
     val negativeGoals = negativePreds.map(predicateToGoal(bindings))
@@ -143,9 +143,10 @@ class ProvenanceReader(program: Program,
       val aggVars = provRule.head.aggregateVariables
       val (predsWithoutAggVars, predsWithAggVars) =
         positivePreds.partition(_.topLevelVariables.intersect(aggVars).isEmpty)
-      val aggGoals =
-        predsWithAggVars.flatMap(predicateToGoal(bindings) _ andThen getAggregateSupport(time))
-      predsWithoutAggVars.map(predicateToGoal(bindings)) ++ aggGoals
+//      val aggGoals =
+//        predsWithAggVars.flatMap(predicateToGoal(bindings) _ andThen getAggregateSupport(time))
+//      predsWithoutAggVars.map(predicateToGoal(bindings)) ++ aggGoals
+      predsWithoutAggVars.map(predicateToGoal(bindings))
     }
     logger.debug(s"Positive subgoals: $positiveGoals")
     logger.debug(s"Negative subgoals: $negativeGoals")
@@ -194,7 +195,7 @@ class ProvenanceReader(program: Program,
    * the matching rules and variable bindings extracted from the provenance table entries.
    */
   private def findRuleFirings(goalTuple: GoalTuple): Seq[(Rule, Map[String, String])] = {
-    assert(goalTuple.cols.last != WILDCARD, "Time shouldn't be a wildcard")
+    //assert(goalTuple.cols.last != WILDCARD, "Time shouldn't be a wildcard")
     if (goalTuple.negative) {
       for (
         table <- provTableManager.provTables.getOrElse(goalTuple.table, Seq.empty);

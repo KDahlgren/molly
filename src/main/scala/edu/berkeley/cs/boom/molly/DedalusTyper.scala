@@ -9,6 +9,12 @@ import org.jgrapht.alg.util.UnionFind
 import scala.collection.JavaConverters._
 import org.kiama.util.Positions
 
+// ################################################### //
+//KD :
+import java.io._
+import scala.io.Source
+// ################################################### //
+
 sealed trait DedalusType
 object DedalusType {
   case object INT extends DedalusType
@@ -39,6 +45,12 @@ object DedalusTyper {
     }
   }
 
+  private def inferTypeOfString( aString: String ): DedalusType = {
+    aString match {
+      case "string" => STRING
+      case "int" => INT
+    }
+  }
   private def dom(types: Set[(Atom, DedalusType)]): Set[(Atom, DedalusType)] = {
     if (types.map(_._2) == Set(STRING, LOCATION)) {
       types.filter(_._2 == LOCATION)
@@ -138,32 +150,121 @@ object DedalusTyper {
       colCounts.head
     } + ("clock" -> 4) + ("crash" -> 4)
 
+    // ################################################# //
+    // KD
+    //   read column types from iapyx file and create a map.
+
+    val iapyx_types_file  = "./iapyx_types.data"
+    val iapyx_types       = Source.fromFile( iapyx_types_file ).getLines.mkString
+    val iapyx_types_array = iapyx_types.split( ";" )
+
+    println( "iapyx_types_array:" )
+    println( iapyx_types_array )
+
+    var type_map = scala.collection.mutable.Map[ String, List[ DedalusType ] ]()
+
+    println( "typeLines:" )
+    for( type_line <- iapyx_types_array ) {
+      println( "type_line:" )
+      println( type_line );
+      val type_line_array = type_line.split( "," )
+      val table_name      = type_line_array(0)
+      val table_types     = type_line_array.slice( 1, type_line_array.length )
+
+      // convert array of strings into list of dedalus types 
+      var tmp_list            = List[ DedalusType ]()
+      val table_types_reverse = table_types.reverse //need to do this. otherwise, results are backwards??? 
+                                                    //weird. probably something to do with the '::=' operator.
+      for( t <- table_types_reverse ) {
+        tmp_list ::= inferTypeOfString( t )
+      }
+
+      //val types_list         = table_types.toList
+      val types_list         = tmp_list
+      type_map( table_name ) = types_list
+    }
+
+    println( "type_map:" )
+    println( type_map )
+
+    // ################################################# //
+
     // Assign types to each group of columns:
     val tableNames = allPredicates.map(_.tableName).toSet  ++ Set("crash", "clock")
     val tables = tableNames.map { tableName =>
-      val numCols = numColsInTable(tableName)
-      val colTypes = (0 to numCols - 1).map { colNum =>
-        val representative = colRefToMinColRef.find((tableName, colNum))
-        val types = dom(typeEvidence.getOrElse(representative,
-          throw new Exception(
-            s"No evidence for type of column ${representative._2} of ${representative._1}")))
-        assert(types.map(_._2).size == 1, {
-          val evidenceByType = types.groupBy(_._2)
-          val headPosition =
-            Positions.getStart(allPredicates.filter(_.tableName == tableName).head.cols(colNum))
-          s"Conflicting evidence for type of column $colNum of $tableName:\n\n" +
-          headPosition.longString + "\n---------------------------------------------\n" +
-          evidenceByType.map { case (inferredType, evidence) =>
-            val evidenceLocations = for ((atom, _) <- evidence) yield {
-              if (atom != null) Positions.getStart(atom).longString
-              else "unification with meta EDB column"
-            }
-            s"Evidence for type $inferredType:\n\n" +  evidenceLocations.mkString("\n")
-          }.mkString("\n---------------------------------------------\n")
-        })
-        types.head._2
-      }
-      Table(tableName, colTypes.toList)
+
+//    // ################################################# //
+//    // KD
+//    //   bypassing molly type assignment process
+//
+//      val numCols = numColsInTable(tableName)
+//      val colTypes = (0 to numCols - 1).map { colNum =>
+//        val representative = colRefToMinColRef.find((tableName, colNum))
+//        val types = dom(typeEvidence.getOrElse(representative,
+//          throw new Exception(
+//            s"No evidence for type of column ${representative._2} of ${representative._1}")))
+//
+//        assert(types.map(_._2).size == 1, {
+//          val evidenceByType = types.groupBy(_._2)
+//          val headPosition =
+//            Positions.getStart(allPredicates.filter(_.tableName == tableName).head.cols(colNum))
+//          s"Conflicting evidence for type of column $colNum of $tableName:\n\n" +
+//          headPosition.longString + "\n---------------------------------------------\n" +
+//          evidenceByType.map { case (inferredType, evidence) =>
+//            val evidenceLocations = for ((atom, _) <- evidence) yield {
+//              if (atom != null) Positions.getStart(atom).longString
+//              else "unification with meta EDB column"
+//            }
+//            s"Evidence for type $inferredType:\n\n" +  evidenceLocations.mkString("\n")
+//          }.mkString("\n---------------------------------------------\n")
+//        })
+//
+//        types.head._2
+//      }
+//
+//      // ========================================= //
+//
+//      println( "----" )
+//      println( "tableName" )
+//      println( tableName )
+//      println( type_map( tableName ) )
+//      println( type_map( tableName )(0) )
+//
+//      println( "colTypes:" )
+//      println( colTypes.getClass )
+//      println( colTypes )
+//
+//      val this_type_list = type_map( tableName )
+//      val colTypes2      = Vector.empty ++ this_type_list
+//
+//      println( "colTypes2:" )
+//      println( colTypes2.getClass )
+//      println( colTypes2 )
+//
+//      // ========================================= //
+//
+//      //Table(tableName, colTypes.toList)
+//      Table(tableName, colTypes2.toList)
+//
+//      // ################################################# //
+
+      // ################################################# //
+      // KD
+      //   save column types from iapyx file instead.
+
+      println( "tableName" )
+      println( tableName )
+
+      val this_type_list = type_map( tableName )
+      val colTypes2      = Vector.empty ++ this_type_list
+
+      println( "colTypes2:" )
+      println( colTypes2 )
+
+      Table( tableName, colTypes2.toList )
+
+      // ################################################# //
+
     }
     program.copy(tables = tables)
   }
