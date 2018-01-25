@@ -1,3 +1,5 @@
+eval_results_file_*.txt
+
 *.class
 *.log
 
