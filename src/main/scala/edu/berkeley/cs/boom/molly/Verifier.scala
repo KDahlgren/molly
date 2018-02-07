@@ -11,7 +11,7 @@ import scalaz._
 
 import edu.berkeley.cs.boom.molly.ast.Program
 import edu.berkeley.cs.boom.molly.derivations._
-import edu.berkeley.cs.boom.molly.symmetry.{SymmetryChecker, SymmetryAwareSet}
+import edu.berkeley.cs.boom.molly.symmetry.{ SymmetryChecker, SymmetryAwareSet }
 import edu.berkeley.cs.boom.molly.wrappers.C4Wrapper
 
 case class RunStatus(underlying: String) extends AnyVal
@@ -47,16 +47,17 @@ case class Run(
  *                    that are isomorphic to ones that we have already considered
  * @param negativeSupport if true, explore beneath negative subgoals when constructing provenance
  *                        trees
+ * @param ignoreProvNodes if provided, excludes nodes, having the contained substrings in their names, from the provenance tree
  * @param metricRegistry a CodaHale metrics registry, for logging performance statistics
  */
 class Verifier(
   failureSpec: FailureSpec,
   program: Program,
   solver: Solver = Z3Solver,
-  causalOnly: Boolean  = false,
+  causalOnly: Boolean = false,
   useSymmetry: Boolean = false,
-  negativeSupport: Boolean = false
-)(implicit val metricRegistry: MetricRegistry) extends LazyLogging with InstrumentedBuilder {
+  negativeSupport: Boolean = false,
+  ignoreProvNodes: scala.collection.immutable.Seq[String] = scala.collection.immutable.Seq())(implicit val metricRegistry: MetricRegistry) extends LazyLogging with InstrumentedBuilder {
 
   private val failureFreeSpec = failureSpec.copy(eff = 0, maxCrashes = 0)
   private val failureFreeProgram = DedalusTyper.inferTypes(failureFreeSpec.addClockFacts(program))
@@ -68,7 +69,7 @@ class Verifier(
    * The ultimate model of a failure-free execution, used to bootstrap the verification.
    */
   private val failureFreeUltimateModel: UltimateModel = {
-    new C4Wrapper("error_free", failureFreeProgram, runId ).run
+    new C4Wrapper("error_free", failureFreeProgram, runId).run
   }
 
   private val failureFreeGood = failureFreeUltimateModel.tableAtTime("post", failureSpec.eot).toSet
@@ -92,7 +93,7 @@ class Verifier(
    */
   def random: EphemeralStream[Run] = {
     val provenanceReader =
-      new ProvenanceReader(failureFreeProgram, failureFreeSpec, failureFreeUltimateModel, negativeSupport)
+      new ProvenanceReader(failureFreeProgram, failureFreeSpec, failureFreeUltimateModel, negativeSupport, ignoreProvNodes)
     val messages = provenanceReader.messages
     val failureFreeRun =
       Run(runId.getAndIncrement, RunStatus("success"), failureSpec, failureFreeUltimateModel, messages, Nil)
@@ -125,9 +126,7 @@ class Verifier(
     val messageLoss = for (
       from <- originalSpec.nodes;
       to <- originalSpec.nodes;
-      time <- 1 to originalSpec.eff - 1
-      if (rando.nextInt % originalSpec.eff) == 1
-      if from != to
+      time <- 1 to originalSpec.eff - 1 if (rando.nextInt % originalSpec.eff) == 1 if from != to
     ) yield {
       MessageLoss(from, to, time)
     }
@@ -136,7 +135,7 @@ class Verifier(
     val randomSpec = originalSpec.copy(crashes = crashes.toSet, omissions = messageLoss.toSet)
     val failProgram = DedalusTyper.inferTypes(randomSpec.addClockFacts(program))
     val model = new C4Wrapper("with_errors", failProgram, runId).run
-    val provenanceReader = new ProvenanceReader(failProgram, randomSpec, model, negativeSupport)
+    val provenanceReader = new ProvenanceReader(failProgram, randomSpec, model, negativeSupport, ignoreProvNodes)
     val messages = provenanceReader.messages
     if (isGood(model)) {
       Run(runId.getAndIncrement, RunStatus("success"), randomSpec, model, messages, Nil)
@@ -145,7 +144,6 @@ class Verifier(
       Run(runId.getAndIncrement, RunStatus("failure"), randomSpec, model, messages, Nil)
     }
   }
-
 
   /**
    * Run the verification, returning a lazy ephemeral stream of results.  You can perform
@@ -156,7 +154,7 @@ class Verifier(
     logger.warn(s"DO verify")
 
     val provenanceReader =
-      new ProvenanceReader(failureFreeProgram, failureFreeSpec, failureFreeUltimateModel, negativeSupport)
+      new ProvenanceReader(failureFreeProgram, failureFreeSpec, failureFreeUltimateModel, negativeSupport, ignoreProvNodes)
     logger.debug("get messages")
     val messages = provenanceReader.messages
     logger.debug("GET TREES")
@@ -184,7 +182,7 @@ class Verifier(
       EphemeralStream.emptyEphemeralStream
     } else {
       val failureSpec = unexplored.next()
-      assert (!alreadyExplored.contains(failureSpec))
+      assert(!alreadyExplored.contains(failureSpec))
       val (run, potentialCounterexamples) = runFailureSpec(failureSpec)
       alreadyExplored += failureSpec
       run ##:: doVerify(queueToVerify ++ potentialCounterexamples)
@@ -213,9 +211,9 @@ class Verifier(
   private def runFailureSpec(failureSpec: FailureSpec): (Run, Set[FailureSpec]) = {
     logger.info(s"Retesting with crashes ${failureSpec.crashes} and losses ${failureSpec.omissions}")
     val failProgram = DedalusTyper.inferTypes(failureSpec.addClockFacts(program))
-    val model = new C4Wrapper("with_errors", failProgram, runId ).run
+    val model = new C4Wrapper("with_errors", failProgram, runId).run
     logger.info(s"'post' is ${model.tableAtTime("post", failureSpec.eot)}")
-    val provenanceReader = new ProvenanceReader(failProgram, failureSpec, model, negativeSupport)
+    val provenanceReader = new ProvenanceReader(failProgram, failureSpec, model, negativeSupport, ignoreProvNodes)
     val messages = provenanceReader.messages
     val provenance_orig = provenanceReader.getDerivationTreesForTable("post")
     val provenance = whichProvenance(provenanceReader, provenance_orig)
@@ -223,7 +221,6 @@ class Verifier(
     //  val tups = p.allTups
     //  logger.debug("THIS prov, " + tups.toString)
     //}
-
 
     if (isGood(model)) {
       // This run may have used more channels than the original run; verify
