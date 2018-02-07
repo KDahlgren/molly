@@ -23,7 +23,9 @@ The appropriately demarcated code inputs a list of tables from the "iapyx_tables
 
 # instructions
 
-To run iapyx programs, input the complete iapyx olg program in the hacked-Molly command line. For example:
+To run iapyx programs, input the complete iapyx olg program in the hacked-Molly command line. Be sure all defines, crash, clock, and next_clock lines are commented-out or removed.
+<br>
+For example:
 ```
 sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker \
 	./iapyx_prog.olg \
